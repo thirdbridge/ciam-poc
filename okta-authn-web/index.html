@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Okta SDK demo</title>
+    <script src="https://global.oktacdn.com/okta-auth-js/7.4.1/okta-auth-js.min.js" type="text/javascript"></script>
+</head>
+<body style="display: flex; gap: 24px;">
+    <label>Email <input id="email" /></label>
+    <label>Password <input type="password" id="password" /></label>
+    <label>OTP <input id="otp" /></label>
+    <button id="password-submit">Submit Password</button>
+    <button id="otp-submit">Submit Otp</button>
+    <script type="module">
+        const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
+        const optInput = document.getElementById('otp');
+        const passwordSubmit = document.getElementById('password-submit');
+        const otpSubmit = document.getElementById('otp-submit');
+        const oktaClient = new OktaAuth({
+            issuer: YOUR_ISSUER,
+            clientId: YOUR_CLIENT_ID
+        });
+        passwordSubmit.onclick = async () => {
+            // Step 1: Initiate the transaction with email/password check
+            const transaction = await oktaClient.signInWithCredentials({
+                username: emailInput.value,
+                password: passwordInput.value
+            });
+            
+            // Step 2: Ask to receive SMS validation
+            await transaction.factors[0].verify();
+        }
+        otpSubmit.onclick = async () => {
+            // This is just a convenience to get the current transaction
+            const transaction = await oktaClient.tx.resume();
+            
+            // Step 3: Validate the OTP
+            const { sessionToken } = await transaction.verify({ passCode: optInput.value });
+            
+            /**
+             * Step 4-5
+             * 
+             * This is where the custom Okta implementation kicks in. In the background, the SDK will trigger an 
+             * /authorize call, similar to a normal Authorization Code Flow with PKCE. However, the sessionToken 
+             * parameter will be added as an additional query parameter.
+             * 
+             * When the Authorization Server detects this parameter, instead of redirecting to the Okta hosted page,
+             * it will return the authorization code directly.
+             * 
+             * The /token endpoint call can then be made as usual with the authorization code.
+             */
+            const { tokens: { accessToken, idToken } } = await oktaClient.token.getWithoutPrompt({
+                responseType: ['token','id_token'],
+                sessionToken,
+                scopes: [
+                    'openid',
+                    'email',
+                    'profile'
+                ],
+                // Since there is no context switch while using this custom flow, they are less important than in the normal flow.
+                state: `state-${Math.random()}`,
+                nonce: `nonce-${Math.random()}`,
+            });
+        }
+    </script>
+    
+</body>
+</html>

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Okta Interaction Code Demo</title>
+    <script src="https://global.oktacdn.com/okta-auth-js/7.4.3/okta-auth-js.min.js" type="text/javascript"></script>
+</head>
+<body>
+    <h2>Login</h2>
+    <form id="login-form">
+        <input type="text" id="email" placeholder="Email">
+        <input type="password" id="password" placeholder="Password">
+        <input type="text" id="otp" placeholder="otp">
+        <button type="submit">Login</button>
+    </form>
+    <script>
+        const url = window.location.origin + "/login/callback";
+        const authClient = new OktaAuth({
+            issuer: YOUR_ISSUER,
+            clientId: YOUR_CLIENT_ID,
+            redirectUri: url,
+            scopes: ["openid", "profile", "email"],
+            pkce: true,
+        });      
+        document
+            .getElementById("login-form")
+            .addEventListener("submit", async function (event) {
+                event.preventDefault();
+                const email = document.getElementById("email").value;
+                const password = document.getElementById("password").value;
+                const otp = document.getElementById("otp").value;
+                try {
+                    if(otp === ''){
+                    // start the flow with no param
+                    const initialTx = await authClient.idx.authenticate();
+                    console.log(initialTx)
+
+                    // gather user inputs
+                    const identifyTx = await authClient.idx.proceed({ username: email, password });
+                    console.log(identifyTx)
+
+                    // Additional Transactions to select MFA if needed
+                    // Clients only have phone so no need to select phone as MFA, but we need to select SMS since sms and call are both options under phone in Identity engine
+                    const mfaSelectionTx = await authClient.idx.proceed({ methodType: "sms" });
+                    console.log(mfaSelectionTx)
+                    } else {
+                        //send otp once its entered by the user
+                        const finalTx = await authClient.idx.proceed({ verificationCode: otp });
+                        console.log(finalTx.tokens)
+                    }
+                } catch (err) {
+                    console.error("Failed to login", err);
+                }
+            });
+    </script>
+</body>
+</html>
